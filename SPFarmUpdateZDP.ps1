@@ -2,10 +2,10 @@ Configuration SPFarmUpdateZDP
 {
     $CredsSPFarm = Get-Credential -Message "Farm Account Service Account"
     Add-PSSnapin Microsoft.SharePoint.Powershell -ErrorAction SilentlyContinue
-    Import-DscResource -ModuleName SharePointDSC -ModuleVersion 3.6.0.0
+    Import-DscResource -ModuleName SharePointDSC 
     Import-DscResource -ModuleName PSDesiredStateConfiguration
     #FarmWideConfig
-    Node LocalHost
+    Node $AllNodes.Where{$_.CentralAdminServer -eq $true}.NodeName
     {
         Script EnableSideBySideFarmWide
         {
@@ -41,6 +41,8 @@ Configuration SPFarmUpdateZDP
                 }
                 return @{Result = $true}
             }
+            PsDscRunAsCredential = $CredsSPFarm
+
         }
         WaitForAll SPConfigWizardServerGroup2
         {
@@ -110,6 +112,7 @@ Configuration SPFarmUpdateZDP
                     }
                 }
             }
+            PsDscRunAsCredential = $CredsSPFarm
             DependsOn = "[WaitForAll]SPConfigWizardServerGroup2"
         }
     }
@@ -118,10 +121,10 @@ Configuration SPFarmUpdateZDP
     {
         SPProductUpdate ServerGroup1
         {
-            SetupFile = "C:\Patch\CU.exe"
+            SetupFile = "c:\sts2019-kb4484224-fullfile-x64-glb.exe"
             ShutdownServices = $true
-            BinaryInstallDays = @("sat", "sun")
-            BinaryInstallTime = "12:00am to 4:00am"
+            BinaryInstallDays = @("wed")
+            BinaryInstallTime = "12:00am to 11:00pm"
             PsDscRunAsCredential = $CredsSPFarm
         }
         WaitForAll SPProuductUpdateServerGroup2
@@ -135,8 +138,8 @@ Configuration SPFarmUpdateZDP
         SPConfigWizard ServerGroup1
         {
             Ensure = "Present"
-            DatabaseUpgradeDays = @("sat", "sun")
-            DatabaseUpgradeTime = "12:00am to 4:00am"
+            DatabaseUpgradeDays = @("wed")
+            DatabaseUpgradeTime = "12:00am to 11:00pm"
             PsDscRunAsCredential = $CredsSPFarm
             IsSingleInstance = "Yes"
             DependsOn = "[WaitForAll]SPProuductUpdateServerGroup2"
@@ -154,10 +157,10 @@ Configuration SPFarmUpdateZDP
         }
         SPProductUpdate ServerGroup2
         {
-            SetupFile = "C:\Patch\CU.exe"
+            SetupFile = "c:\sts2019-kb4484224-fullfile-x64-glb.exe"
             ShutdownServices = $true
-            BinaryInstallDays = @("sat", "sun")
-            BinaryInstallTime = "12:00am to 4:00am"
+            BinaryInstallDays = @("wed")
+            BinaryInstallTime = "12:00am to 11:00pm"
             PsDscRunAsCredential = $CredsSPFarm
             DependsOn = "[WaitForAll]SPProductUpdateServerGroup1"
         }
@@ -172,22 +175,27 @@ Configuration SPFarmUpdateZDP
         SPConfigWizard ServerGroup2
         {
             Ensure = "Present"
-            DatabaseUpgradeDays = @("sat", "sun")
-            DatabaseUpgradeTime = "12:00am to 4:00am"
+            DatabaseUpgradeDays = @("wed")
+            DatabaseUpgradeTime = "12:00am to 11:00pm"
             PsDscRunAsCredential = $CredsSPFarm
             IsSingleInstance = "Yes"
             DependsOn = "[WaitForAll]SPConfigWizardServerGroup1"
         }
     }
 }
+Add-PSSnapin Microsoft.SharePoint.Powershell -ErrorAction SilentlyContinue
+$CentralAdminServer = "SP"
 $ConfigData = @{
+    
     AllNodes = [array] ((Get-SPFarm).Servers | Where-Object Role -ne "Invalid" | ForEach-Object{
         @{
             NodeName = $_.Address;
-            ServerGroup = $_.Address -replace '\D', '';
+            ServerGroup = Get-Random -Minimum 1 -Maximum 3;
             PSDscAllowPlainTextPassword = $true;
             PSDscAllowDomainUser = $true;
+            CentralAdminServer = ($_.Address -eq $CentralAdminServer);
         }
     })
+    
 }
-SPFarmUpdateZDT -ConfigurationData $ConfigData
+SPFarmUpdateZDP -ConfigurationData $ConfigData
